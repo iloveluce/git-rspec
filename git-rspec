@@ -104,7 +104,7 @@ for file_path in out.split():
     except Exception as e:
         print bcolors.FAIL + "Error ({0})".format(str(e)) + bcolors.ENDC
     if spec_path:
-        print bcolors.OKGREEN + "Analyizing " + spec_path + bcolors.ENDC
+        print bcolors.OKGREEN + " Running Rspec for " + spec_path + bcolors.ENDC
         rspec_command.append(spec_path)
 # Remove duplicates
 rspec_command = list(set(rspec_command))

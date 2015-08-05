@@ -1,0 +1,115 @@
+#!/usr/bin/env python
+import sys, re, os, subprocess
+
+class bcolors:
+    HEADER = '\033[95m'
+    OKBLUE = '\033[94m'
+    OKGREEN = '\033[92m'
+    WARNING = '\033[93m'
+    FAIL = '\033[91m'
+    ENDC = '\033[0m'
+    BOLD = '\033[1m'
+    UNDERLINE = '\033[4m'
+
+class FindRspecFileCommand:
+ 
+    def run(self, file_path):
+        if file_path is None: return
+
+        if file_path.endswith(".rb"):
+            quick_location = self.quick_find(file_path)
+            if quick_location:
+                return quick_location
+
+            current_file_name = re.search(r"[/\\]([\w.]+)$", file_path).group(1)
+            base_name = re.search(r"(\w+)\.rb$", current_file_name).group(1)
+            base_name = re.sub(r"_spec$", "", base_name)
+
+            if current_file_name.endswith("_spec.rb"):
+                if os.path.exists(current_file_name):
+                    return file_path
+            else:
+                test_matcher = re.compile(r"[/\\]" + base_name + "_spec\.rb$")
+                return self.open_project_file(test_matcher, file_path)
+        else:
+            print  bcolors.WARNING + file_path +" is not a Ruby File" + bcolors.ENDC
+
+    def spec_paths(self, file_path):
+        return [
+            self.batch_replace(file_path,
+                (r"\b(?:app|lib)\b", "spec"), (r"\b(\w+)\.rb", r"\1_spec.rb")),
+            self.batch_replace(file_path,
+                (r"\blib\b", os.path.join("spec", "lib")), (r"\b(\w+)\.rb", r"\1_spec.rb")),
+            self.batch_replace(file_path,
+                (r"\bapp/lib\b", os.path.join("spec", "app_lib")), (r"\b(\w+)\.rb", r"\1_spec.rb"))
+        ]
+
+    def code_paths(self, file_path):
+        file_path = re.sub(r"\b(\w+)_spec\.rb$", r"\1.rb", file_path)
+        return [
+            re.sub(r"\bspec\b", "app", file_path),
+            re.sub(r"\bspec\b", "lib", file_path),
+            re.sub(r"\b{}\b".format(os.path.join("spec", "lib")), "lib", file_path)
+        ]
+
+    def quick_find(self, file_path):
+        if re.search(r"\bspec\b|_spec\.rb$", file_path):
+            if os.path.exists(file_path):
+                return file_path
+        elif re.search(r"\b(?:app|lib)\b", file_path):
+            for path in self.spec_paths(file_path):
+                if os.path.exists(path):
+                    return path
+
+    def batch_replace(self, string, *pairs):
+        for target, replacement in pairs:
+            string = re.sub(target, replacement, string)
+        return string
+
+    def open_project_file(self, file_matcher, file_path):
+        for path, dirs, filenames in self.walk_project_folder(file_path):
+            for filename in filter(lambda f: f.endswith(".rb"), filenames):
+                current_file = os.path.join(path, filename)
+                if file_matcher.search(current_file):
+                    return os.path.join(path, filename)
+        print "RSpec: No matching files found for %s" % file_path
+    
+    def walk_project_folder(self, file_path):
+        for folder in os.listdir(os.getcwd()):
+            if not file_path.startswith(folder):
+                continue
+            for walk in os.walk(folder):
+                yield walk
+
+
+print "usage: git rspec <commit-ish>...\n"
+if len(sys.argv) > 1:
+    commit = sys.argv[1]
+else:
+    commit= "HEAD"
+
+subprocess.call("cd `git rev-parse --show-toplevel`", shell=True)
+process = subprocess.Popen("git diff-tree --no-commit-id --name-only -r " + commit,
+                                        shell=True, stdout=subprocess.PIPE, 
+                                           stderr=subprocess.PIPE)
+out, err = process.communicate()
+Finder = FindRspecFileCommand()
+rspec_command = []
+for file_path in out.split():
+    try:
+        spec_path = Finder.run(file_path)
+    except Exception as e:
+        print bcolors.FAIL + "Error ({0})".format(str(e)) + bcolors.ENDC
+    if spec_path:
+        print bcolors.OKGREEN + "Analyizing " + spec_path + bcolors.ENDC
+        rspec_command.append(spec_path)
+# Remove duplicates
+rspec_command = list(set(rspec_command))
+rspec_command.insert(0, "rspec")
+
+subprocess.call(rspec_command)
+   
+    
+
+
+

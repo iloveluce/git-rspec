@@ -94,6 +94,9 @@ process = subprocess.Popen("git diff-tree --no-commit-id --name-only -r " + comm
                                            stderr=subprocess.PIPE)
 out, err = process.communicate()
 Finder = FindRspecFileCommand()
+if not out:
+    print bcolors.WARNING + "No files in this commit" + bcolors.ENDC
+    sys.exit()
 rspec_command = []
 for file_path in out.split():
     try:

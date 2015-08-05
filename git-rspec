@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-import sys, re, os, subprocess
+import sys, re, os, subprocess, argparse
 
 class bcolors:
     HEADER = '\033[95m'
@@ -11,8 +11,85 @@ class bcolors:
     BOLD = '\033[1m'
     UNDERLINE = '\033[4m'
 
+def main():
+    parser = argparse.ArgumentParser(description="Run rspec files associated with a change in your repo")
+    parser.add_argument('-d', '-dryrun', help="Only show the associated spec files (and don't run them)", action='store_true', dest="dryrun",default=False)
+    parser.add_argument('-v','-verbose', help="output more information about files", action='store_true',dest="verbose", default=False)
+    group = parser.add_mutually_exclusive_group(required=False) 
+    group.add_argument('-c', nargs='?', metavar='commit-ish', type=str, 
+                         help='A commit or range of commits (e.g. HEAD~2..HEAD) you would like to analyze', dest="commit", const="HEAD")
+   
+    group.add_argument('-n', '-notcommited', help="Use staged and unstaged file changes instead of a commit", action='store_true', dest="notcommited", default=True)
+    group.add_argument('-s','-staged', help="Using staged file changes instead of a commit", action='store_true', dest="staged", default=False)
+    group.add_argument('-u', '-unstaged', help="Using unstaged file changes instead of a commit", action='store_true',dest="unstaged",  default=False)
+
+    args = parser.parse_args()
+    enter_main_directory()
+    if args.commit:
+        files = find_files_by_commit(args.commit)
+    elif args.staged:
+        files = find_staged_files()
+    elif args.unstaged:
+        files = find_unstaged_files()
+    else: # notcommited
+        files = find_staged_files()
+        files.extend(find_unstaged_files())
+
+    spec_files = find_associated_spec_files(files, args.verbose)
+
+    if not args.dryrun:
+        if len(spec_files) < 1:
+            print bcolors.WARNING + "Could not find any associated spec files" + bcolors.ENDC
+        else:
+            run_rspec(spec_files)
+
+
+def find_associated_spec_files(files, verbose):
+    Finder = FindRspecFileCommand(verbose)
+    spec_files = []
+    for file_path in files:
+        try:
+            spec_path = Finder.run(file_path)
+        except Exception as e:
+            print bcolors.FAIL + "Error for {0} ({1})".format(file_path,str(e)) + bcolors.ENDC
+        if spec_path:
+            print bcolors.OKGREEN + " Running rspec on " + spec_path + bcolors.ENDC
+            spec_files.append(spec_path)
+    
+    # Remove duplicates
+    return list(set(spec_files))
+
+def run_rspec(arguments):
+    arguments.insert(0, "rspec")
+    subprocess.call(arguments)
+
+def find_staged_files():
+    process = subprocess.Popen("git diff --name-only --cached", shell=True, stdout=subprocess.PIPE, 
+                                               stderr=subprocess.STDOUT)
+    out, err = process.communicate()
+    return out.split()
+
+def find_unstaged_files():
+    process = subprocess.Popen("git diff --name-only", shell=True, stdout=subprocess.PIPE, 
+                                               stderr=subprocess.STDOUT)
+    out, err = process.communicate()
+    return out.split()
+
+def find_files_by_commit(commit):
+    process = subprocess.Popen("git diff-tree --no-commit-id --name-only -r " + commit,
+                                            shell=True, stdout=subprocess.PIPE, 
+                                               stderr=subprocess.STDOUT)
+    out, err = process.communicate()
+    return out.split()
+
+def enter_main_directory():
+    subprocess.call("cd `git rev-parse --show-toplevel`", shell=True)
+
 class FindRspecFileCommand:
  
+    def __init__(self, verbose=False):
+        self.verbose = verbose
+
     def run(self, file_path):
         if file_path is None: return
 
@@ -20,6 +97,7 @@ class FindRspecFileCommand:
             quick_location = self.quick_find(file_path)
             if quick_location:
                 return quick_location
+
 
             current_file_name = re.search(r"[/\\]([\w.]+)$", file_path).group(1)
             base_name = re.search(r"(\w+)\.rb$", current_file_name).group(1)
@@ -32,7 +110,9 @@ class FindRspecFileCommand:
                 test_matcher = re.compile(r"[/\\]" + base_name + "_spec\.rb$")
                 return self.open_project_file(test_matcher, file_path)
         else:
-            print  bcolors.WARNING + file_path +" is not a Ruby File" + bcolors.ENDC
+            if self.verbose:
+                print  bcolors.WARNING + file_path +" is not a Ruby File" + bcolors.ENDC
+            return
 
     def spec_paths(self, file_path):
         return [
@@ -55,8 +135,12 @@ class FindRspecFileCommand:
     def quick_find(self, file_path):
         if re.search(r"\bspec\b|_spec\.rb$", file_path):
             if os.path.exists(file_path):
+                if self.verbose:
+                    print "%s is a spec file" % file_path
                 return file_path
         elif re.search(r"\b(?:app|lib)\b", file_path):
+            if self.verbose:
+                print "Searching for the spec file associated with %s" % file_path
             for path in self.spec_paths(file_path):
                 if os.path.exists(path):
                     return path
@@ -72,7 +156,8 @@ class FindRspecFileCommand:
                 current_file = os.path.join(path, filename)
                 if file_matcher.search(current_file):
                     return os.path.join(path, filename)
-        print "RSpec: No matching files found for %s" % file_path
+        if self.verbose:
+            print "RSpec: No matching files found for %s" % file_path
     
     def walk_project_folder(self, file_path):
         for folder in os.listdir(os.getcwd()):
@@ -82,37 +167,10 @@ class FindRspecFileCommand:
                 yield walk
 
 
-print "usage: git rspec <commit-ish>...\n"
-if len(sys.argv) > 1:
-    commit = sys.argv[1]
-else:
-    commit= "HEAD"
 
-subprocess.call("cd `git rev-parse --show-toplevel`", shell=True)
-process = subprocess.Popen("git diff-tree --no-commit-id --name-only -r " + commit,
-                                        shell=True, stdout=subprocess.PIPE, 
-                                           stderr=subprocess.PIPE)
-out, err = process.communicate()
-Finder = FindRspecFileCommand()
-if not out:
-    print bcolors.WARNING + "No files in this commit" + bcolors.ENDC
-    sys.exit()
-rspec_command = []
-for file_path in out.split():
-    try:
-        spec_path = Finder.run(file_path)
-    except Exception as e:
-        print bcolors.FAIL + "Error ({0})".format(str(e)) + bcolors.ENDC
-    if spec_path:
-        print bcolors.OKGREEN + " Running Rspec for " + spec_path + bcolors.ENDC
-        rspec_command.append(spec_path)
-# Remove duplicates
-rspec_command = list(set(rspec_command))
-rspec_command.insert(0, "rspec")
-
-subprocess.call(rspec_command)
    
-    
+if __name__ == "__main__":
+    main()
 
 
 

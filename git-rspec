@@ -19,7 +19,7 @@ def main():
     group.add_argument('-c', nargs='?', metavar='commit-ish', type=str, 
                          help='A commit or range of commits (e.g. HEAD~2..HEAD) you would like to analyze', dest="commit", const="HEAD")
    
-    group.add_argument('-n', '-notcommited', help="Use staged and unstaged file changes instead of a commit", action='store_true', dest="notcommited", default=True)
+    group.add_argument('-n', '-notcommited', help="Default: Use staged and unstaged file changes instead of a commit", action='store_true', dest="notcommited", default=True)
     group.add_argument('-s','-staged', help="Using staged file changes instead of a commit", action='store_true', dest="staged", default=False)
     group.add_argument('-u', '-unstaged', help="Using unstaged file changes instead of a commit", action='store_true',dest="unstaged",  default=False)
 

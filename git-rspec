@@ -47,6 +47,7 @@ def main():
 def find_associated_spec_files(files, verbose):
     Finder = FindRspecFileCommand(verbose)
     spec_files = []
+    spec_path = None
     for file_path in files:
         try:
             spec_path = Finder.run(file_path)

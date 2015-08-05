@@ -54,7 +54,7 @@ def find_associated_spec_files(files, verbose):
         except Exception as e:
             print bcolors.FAIL + "Error for {0} ({1})".format(file_path,str(e)) + bcolors.ENDC
         if spec_path:
-            print bcolors.OKGREEN + " Running rspec on " + spec_path + bcolors.ENDC
+            print bcolors.OKGREEN + " Will run rspec on " + spec_path + bcolors.ENDC
             spec_files.append(spec_path)
     
     # Remove duplicates
@@ -62,6 +62,7 @@ def find_associated_spec_files(files, verbose):
 
 def run_rspec(arguments):
     arguments.insert(0, "rspec")
+    print "Starting Rspec"
     subprocess.call(arguments)
 
 def find_staged_files():

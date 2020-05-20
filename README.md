@@ -1,6 +1,6 @@
 # git-rspec
 ## Installation
-```curl https://raw.githubusercontent.com/lucianoiscool/git-rspec/master/git-rspec > git-rspec && chmod 700 git-rspec && sudo mv git-rspec /usr/bin```
+```curl https://raw.githubusercontent.com/lucianoiscool/git-rspec/master/git-rspec > git-rspec && chmod 700 git-rspec && sudo mv git-rspec /usr/local/bin```
 
 ## Usage
 

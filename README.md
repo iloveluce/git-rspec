@@ -1,4 +1,7 @@
 # git-rspec
+## Description
+Hey you! Yea you! You just made a commit but you don't know which spec files where affected by it. This script will attempt to find all spec files that were affected by your committ change so that you can run rspec on those files.
+
 ## Installation
 ```curl https://raw.githubusercontent.com/lucianoiscool/git-rspec/master/git-rspec > git-rspec && chmod 700 git-rspec && sudo mv git-rspec /usr/local/bin```
 
